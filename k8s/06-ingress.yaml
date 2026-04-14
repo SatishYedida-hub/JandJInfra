@@ -1,0 +1,57 @@
+# Requires the AWS ALB Ingress Controller (or NGINX Ingress Controller) installed on EKS.
+# Install ALB controller:  https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html
+# Or install NGINX ingress: helm install ingress-nginx ingress-nginx/ingress-nginx
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jandj-ingress
+  namespace: jandj-infra
+  labels:
+    app: jandj-infra
+  annotations:
+    # ── For AWS ALB Ingress Controller ──
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /api/health
+    # Replace with your ACM certificate ARN for HTTPS
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:REGION:ACCOUNT_ID:certificate/CERT_ID
+    #
+    # ── For NGINX Ingress Controller (uncomment below, comment ALB above) ──
+    # kubernetes.io/ingress.class: nginx
+    # nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  rules:
+    - host: jandj.yourdomain.com    # Replace with your actual domain
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-svc
+                port:
+                  number: 5000
+          - path: /uploads
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-svc
+                port:
+                  number: 5000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-svc
+                port:
+                  number: 80
+  # Uncomment for TLS with cert-manager / NGINX ingress
+  # tls:
+  #   - hosts:
+  #       - jandj.yourdomain.com
+  #     secretName: jandj-tls-secret
