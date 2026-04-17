@@ -100,15 +100,23 @@ Then **rotate the credentials** (SMTP password, etc.) that were ever committed, 
 8. Test it in the browser:
    `https://jandj-backend.onrender.com/api/health` → should return `{ "message": "API is healthy" }`
 
-### Seed the admin user (one-time)
+### Admin account is auto-created on first boot
 
-Open the Render backend service → **Shell** tab → run:
+Your backend auto-creates the admin user on startup using the `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars. You don't need to run any manual seed command.
 
-```bash
-node src/seed/createAdmin.js
+On first deploy you'll see in the backend logs:
+
+```
+[Bootstrap] Admin created: admin@jandjinfra.com
 ```
 
-This creates the admin account using `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+On subsequent restarts:
+
+```
+[Bootstrap] Admin already exists: admin@jandjinfra.com
+```
+
+If you see `ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping admin auto-seed`, go back and fill those two env vars on Render.
 
 ---
 
@@ -173,7 +181,7 @@ If you prefer Vercel for the frontend:
 | Frontend loads but API calls fail (CORS)      | Make sure `CORS_ORIGIN` on backend matches frontend URL exactly (no trailing `/`) |
 | "MongoNetworkError" in backend logs           | Whitelist `0.0.0.0/0` in Atlas → Network Access                       |
 | Backend takes 30s to respond on first request | Expected on Render free tier — service was sleeping. Upgrade or use a keep-alive ping service like [cron-job.org](https://cron-job.org) pinging `/api/health` every 10 min |
-| Admin login fails                             | Run the seed script from Step 3 via Render Shell                      |
+| Admin login fails                             | Check backend logs for `[Bootstrap] Admin created/exists`. If missing, verify `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set and redeploy. |
 | Images don't upload                           | Fill in the three `CLOUDINARY_*` env vars                             |
 | Emails don't send                             | For Gmail, you need an **App Password** (not your real password). Enable 2FA → create App Password at <https://myaccount.google.com/apppasswords> |
 
