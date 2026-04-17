@@ -15,7 +15,22 @@ const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGIN || "*")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
@@ -33,7 +48,6 @@ app.use("/api/budget", budgetRoutes);
 app.use("/api/leads", leadRoutes);
 app.use("/api/solution-gallery", solutionGalleryRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/solution-gallery", solutionGalleryRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

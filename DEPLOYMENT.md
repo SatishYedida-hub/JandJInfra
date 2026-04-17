@@ -1,0 +1,188 @@
+# Free Deployment Guide — J & J Infra
+
+This guide walks you through deploying the app **completely free** using:
+
+| Layer    | Service                          | Why                                                  |
+|----------|----------------------------------|------------------------------------------------------|
+| Database | **MongoDB Atlas** (M0 free tier) | 512 MB, always-on, no credit card required           |
+| Backend  | **Render.com** (Free Web Service)| 750 hrs/month free, auto-deploys from GitHub         |
+| Frontend | **Render Static Site** (Free)    | Unlimited static sites, always on                    |
+
+> The free Render backend sleeps after 15 minutes of inactivity (first request then takes ~30 s to wake up). This is fine for demos and small traffic.
+
+---
+
+## Step 0 — Prerequisites
+
+1. A **GitHub** account with this repo pushed to it.
+2. A **MongoDB Atlas** account → <https://www.mongodb.com/cloud/atlas/register>
+3. A **Render** account → <https://render.com/> (sign up with GitHub for easy repo access)
+4. (Optional) Cloudinary, Gmail App Password, and Twilio accounts if you want media uploads, email, and WhatsApp notifications to work.
+
+---
+
+## Step 1 — Secure your repo before pushing
+
+Your current `backend/.env` is tracked by git. Remove it from tracking (keeps the local file, just stops git from tracking it):
+
+```bash
+git rm --cached backend/.env
+git add .gitignore
+git commit -m "chore: stop tracking .env, harden gitignore"
+git push
+```
+
+Then **rotate the credentials** (SMTP password, etc.) that were ever committed, since they are in git history.
+
+---
+
+## Step 2 — Create the MongoDB Atlas database
+
+1. Go to <https://cloud.mongodb.com/> and sign in.
+2. Click **Build a Database** → choose the **Free M0** tier (AWS / any region close to you).
+3. Create a **database user**:
+   - Username: `jandj_app`
+   - Password: generate a strong one and save it
+4. Under **Network Access**, click **Add IP Address** → choose **Allow access from anywhere** (`0.0.0.0/0`). Required for Render to connect.
+5. Click **Connect** → **Drivers** → copy the connection string. It looks like:
+
+   ```
+   mongodb+srv://jandj_app:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+   ```
+
+6. Replace `<password>` with the actual password and append the database name `jandj_infra`:
+
+   ```
+   mongodb+srv://jandj_app:YOUR_PASSWORD@cluster0.xxxxx.mongodb.net/jandj_infra?retryWrites=true&w=majority
+   ```
+
+   Save this — you'll paste it as `MONGO_URI` in Render.
+
+---
+
+## Step 3 — Deploy the backend to Render
+
+### Option A — One-click deploy using the included `render.yaml` (recommended)
+
+1. Go to <https://dashboard.render.com/>.
+2. Click **New** → **Blueprint**.
+3. Connect your GitHub repo → select it.
+4. Render auto-detects `render.yaml` and lists two services: `jandj-backend` and `jandj-frontend`.
+5. Click **Apply**. Render will prompt you to fill in each `sync: false` env variable.
+
+### Fill in these backend env vars when prompted
+
+| Key                       | Value                                                                 |
+|---------------------------|-----------------------------------------------------------------------|
+| `MONGO_URI`               | The Atlas connection string from Step 2                               |
+| `ADMIN_EMAIL`             | e.g. `admin@yourdomain.com`                                           |
+| `ADMIN_PASSWORD`          | A strong password for the initial admin                                |
+| `BASE_URL`                | Leave blank for now — fill with the Render URL after first deploy     |
+| `CORS_ORIGIN`             | Leave blank for now — fill with the frontend URL after first deploy   |
+| `CLOUDINARY_CLOUD_NAME`   | From your Cloudinary dashboard (optional)                             |
+| `CLOUDINARY_API_KEY`      | From Cloudinary (optional)                                            |
+| `CLOUDINARY_API_SECRET`   | From Cloudinary (optional)                                            |
+| `SMTP_HOST`               | `smtp.gmail.com` (or your provider)                                   |
+| `SMTP_PORT`               | `587`                                                                 |
+| `SMTP_USER`               | Your sender email                                                     |
+| `SMTP_PASS`               | Gmail App Password (NOT your real password)                           |
+| `LEAD_NOTIFY_EMAIL`       | Where lead notifications should go                                    |
+| `TWILIO_ACCOUNT_SID`      | From Twilio (optional)                                                |
+| `TWILIO_AUTH_TOKEN`       | From Twilio (optional)                                                |
+| `TWILIO_WHATSAPP_FROM`    | e.g. `whatsapp:+14155238886`                                          |
+| `TWILIO_WHATSAPP_TO`      | Admin WhatsApp, e.g. `whatsapp:+91XXXXXXXXXX`                         |
+
+`JWT_SECRET` is auto-generated by Render — you don't need to enter it.
+
+6. Click **Apply / Create Resources**.
+7. Wait for the backend to build and start. Once live, note its URL, e.g.
+   `https://jandj-backend.onrender.com`
+8. Test it in the browser:
+   `https://jandj-backend.onrender.com/api/health` → should return `{ "message": "API is healthy" }`
+
+### Seed the admin user (one-time)
+
+Open the Render backend service → **Shell** tab → run:
+
+```bash
+node src/seed/createAdmin.js
+```
+
+This creates the admin account using `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+
+---
+
+## Step 4 — Configure the frontend env var
+
+In the Render Blueprint, the frontend will also ask for:
+
+| Key                 | Value                                                    |
+|---------------------|----------------------------------------------------------|
+| `VITE_API_BASE_URL` | `https://jandj-backend.onrender.com/api` (your backend URL + `/api`) |
+
+The frontend will build and deploy. Once live, note its URL, e.g.
+`https://jandj-frontend.onrender.com`.
+
+---
+
+## Step 5 — Wire up CORS + BASE_URL
+
+Now that you know both URLs, go back to the **backend service → Environment** and set:
+
+| Key            | Value                                 |
+|----------------|---------------------------------------|
+| `CORS_ORIGIN`  | `https://jandj-frontend.onrender.com` |
+| `BASE_URL`     | `https://jandj-backend.onrender.com`  |
+
+Click **Save Changes** — Render redeploys automatically.
+
+---
+
+## Step 6 — Verify everything works
+
+1. Open `https://jandj-frontend.onrender.com` in your browser.
+2. Log in with the admin credentials you set.
+3. Try creating a project, uploading an image, submitting a lead from the contact page.
+4. Check the backend **Logs** tab on Render if anything fails.
+
+Your app is now live and accessible to anyone on the internet — completely free!
+
+---
+
+## Alternative — Frontend on Vercel (faster builds, no cold starts)
+
+If you prefer Vercel for the frontend:
+
+1. Go to <https://vercel.com/new> and import the GitHub repo.
+2. **Root Directory**: `frontend`
+3. Vercel auto-detects Vite (thanks to the included `frontend/vercel.json`).
+4. **Environment Variables** → add:
+   - `VITE_API_BASE_URL` = `https://jandj-backend.onrender.com/api`
+5. Click **Deploy**.
+6. After deploy, update `CORS_ORIGIN` on Render backend to include the Vercel URL (comma-separated if you also want Render static):
+   ```
+   https://your-app.vercel.app,https://jandj-frontend.onrender.com
+   ```
+
+---
+
+## Troubleshooting
+
+| Problem                                       | Fix                                                                   |
+|-----------------------------------------------|-----------------------------------------------------------------------|
+| Frontend loads but API calls fail (CORS)      | Make sure `CORS_ORIGIN` on backend matches frontend URL exactly (no trailing `/`) |
+| "MongoNetworkError" in backend logs           | Whitelist `0.0.0.0/0` in Atlas → Network Access                       |
+| Backend takes 30s to respond on first request | Expected on Render free tier — service was sleeping. Upgrade or use a keep-alive ping service like [cron-job.org](https://cron-job.org) pinging `/api/health` every 10 min |
+| Admin login fails                             | Run the seed script from Step 3 via Render Shell                      |
+| Images don't upload                           | Fill in the three `CLOUDINARY_*` env vars                             |
+| Emails don't send                             | For Gmail, you need an **App Password** (not your real password). Enable 2FA → create App Password at <https://myaccount.google.com/apppasswords> |
+
+---
+
+## Upgrading later
+
+If your app grows, cheap paid options are:
+
+- **Render Starter ($7/mo)** — no cold starts, always-on backend
+- **Railway ($5/mo credit)** — one-click full-stack deploy with DB included
+- **Fly.io** — free tier with always-on small VMs
