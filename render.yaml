@@ -59,7 +59,6 @@ services:
     name: jandj-frontend
     runtime: static
     rootDir: frontend
-    plan: free
     branch: main
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
