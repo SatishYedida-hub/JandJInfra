@@ -18,13 +18,13 @@ services:
         value: 5000
       # Set these as SECRETS in the Render dashboard (sync: false makes Render prompt for them)
       - key: MONGO_URI
-        sync: false
+        sync: mongodb+srv://yedidasatish45_db_user:i3OZxfKyqF72pKvY@jandjinfra.1d0hud2.mongodb.net/?appName=JandJInfra
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_EMAIL
-        sync: false
+        sync: sravaniyarra55@gmail.com
       - key: ADMIN_PASSWORD
-        sync: false
+        sync: Admin@123
       - key: BASE_URL
         sync: false
       - key: CORS_ORIGIN
